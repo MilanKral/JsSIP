@@ -36,6 +36,7 @@ JsSIP.DigestAuthentication = function (ua, request, response) {
   this.response = null;
   this.cnonce = null;
   this.nc = 0;
+  this.ncHex = '00000000';
 
   // 'qop' can contain a list of values (Array). Let's choose just one.
   if (authenticate.qop) {
@@ -59,11 +60,13 @@ JsSIP.DigestAuthentication.prototype.authenticate = function(password) {
 
   this.cnonce = JsSIP.Utils.createRandomToken(12);
   this.nc += 1;
+  this.updateNcHex();
 
   // nc-value = 8LHEX. Max value = 'FFFFFFFF'
   if (this.nc === 4294967296) {
     console.log(JsSIP.C.LOG_DIGEST_AUTHENTICATION + 'maximum "nc" value has been reached, resetting "nc"');
     this.nc = 1;
+    this.ncHex = '00000001';
   }
 
   // HA1 = MD5(A1) = MD5(username:realm:password)
@@ -73,13 +76,13 @@ JsSIP.DigestAuthentication.prototype.authenticate = function(password) {
     // HA2 = MD5(A2) = MD5(method:digestURI)
     ha2 = JsSIP.Utils.MD5(this.method + ":" + this.uri);
     // response = MD5(HA1:nonce:nonceCount:credentialsNonce:qop:HA2)
-    this.response = JsSIP.Utils.MD5(ha1 + ":" + this.nonce + ":" + this.decimalToHex(this.nc) + ":" + this.cnonce + ":auth:" + ha2);
+    this.response = JsSIP.Utils.MD5(ha1 + ":" + this.nonce + ":" + this.ncHex + ":" + this.cnonce + ":auth:" + ha2);
 
   } else if (this.qop = 'auth-int') {
     // HA2 = MD5(A2) = MD5(method:digestURI:MD5(entityBody))
     ha2 = JsSIP.Utils.MD5(this.method + ":" + this.uri + ":" + JsSIP.Utils.MD5(this.body ? this.body : ""));
     // response = MD5(HA1:nonce:nonceCount:credentialsNonce:qop:HA2)
-    this.response = JsSIP.Utils.MD5(ha1 + ":" + this.nonce + ":" + this.decimalToHex(this.nc) + ":" + this.cnonce + ":auth-int:" + ha2);
+    this.response = JsSIP.Utils.MD5(ha1 + ":" + this.nonce + ":" + this.ncHex + ":" + this.cnonce + ":auth-int:" + ha2);
 
   } else if (this.qop === null) {
     // HA2 = MD5(A2) = MD5(method:digestURI)
@@ -107,6 +110,7 @@ JsSIP.DigestAuthentication.prototype.update = function(response) {
 
   if(nonce !== this.nonce) {
     this.nc = 0;
+    this.ncHex = '00000000';
     this.nonce = nonce;
   }
 
@@ -156,14 +160,18 @@ JsSIP.DigestAuthentication.prototype.toString = function() {
   if (this.qop) {
     auth_params.push('qop=' + this.qop);
     auth_params.push('cnonce="' + this.cnonce + '"');
-    auth_params.push('nc=' + this.decimalToHex(this.nc));
+    auth_params.push('nc=' + this.ncHex);
   }
 
   return 'Digest ' + auth_params.join(', ');
 };
 
 
-JsSIP.DigestAuthentication.prototype.decimalToHex = function(decimal) {
-  var hex = Number(decimal).toString(16);
-  return '00000000'.substr(0, 8-hex.length) + hex;
+/**
+* Generate the 'nc' value as required by Digest in this.ncHex by reading this.nc.
+* @private
+*/
+JsSIP.DigestAuthentication.prototype.updateNcHex = function() {
+  var hex = Number(this.nc).toString(16);
+  this.ncHex = '00000000'.substr(0, 8-hex.length) + hex;
 };
