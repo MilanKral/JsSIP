@@ -600,7 +600,7 @@ opaque              = "opaque"i EQUAL opaque: quoted_string_clean {
                         data.opaque=opaque; }
 
 stale               = "stale"i EQUAL stale: ( "true"i / "false"i ) {
-                        if (/true/i.test(stale)) {
+                        if (/^true/i.test(stale)) {
                           data.stale=true;
                         } else {
                           data.stale=false;
@@ -614,7 +614,6 @@ algorithm           = "algorithm"i EQUAL algorithm: ( "MD5"i / "MD5-sess"i
 qop_options         = "qop"i EQUAL LDQUOT (qop_value ("," qop_value)*) RDQUOT
 
 qop_value           = qop_value: ( "auth-int"i / "auth"i / token ) {
-                      console.log("QOP_VALUE: " + qop_value);
                       data.qop || (data.qop=[]);
                       data.qop.push(qop_value.toLowerCase()); }
 
