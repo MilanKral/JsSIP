@@ -92,14 +92,14 @@ JsSIP.RequestSender.prototype = {
         challenge = response.s('Proxy-Authenticate');
       }
 
-      if ( !this.challenged || (this.challenged && !this.staled && challenge.stale === 'true') ) {
+      if ( !this.challenged || (this.challenged && !this.staled && challenge.stale) ) {
         if (!this.credentials) {
           this.credentials = new JsSIP.DigestAuthentication(this.ua, this.request, response);
         } else {
           this.credentials.update(response);
         }
 
-        if (challenge.stale === 'true') {
+        if (challenge.stale) {
           this.staled = true;
         }
 

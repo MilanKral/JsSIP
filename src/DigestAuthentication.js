@@ -12,7 +12,7 @@
  * @param {JsSIP.IncomingResponse} response
  */
 JsSIP.DigestAuthentication = function (ua, request, response) {
-  var authenticate, realm, qop, nonce, opaque,
+  var authenticate,
     username = ua.configuration.authorization_user,
     password = ua.configuration.password;
 
@@ -22,24 +22,34 @@ JsSIP.DigestAuthentication = function (ua, request, response) {
     authenticate = response.parseHeader('proxy-authenticate');
   }
 
-  realm = authenticate.realm.replace(/"/g,'');
-  qop = authenticate.qop || null;
-  nonce = authenticate.nonce.replace(/"/g,'');
-  opaque = authenticate.opaque;
-
-  this.password = password;
-  this.method   = request.method;
+  // TODO: Some required params should be checked here, and ABORT if not present.
+  // NOTE: "ABORT" means "raising something so the method caller catches it and abort the authentication attempt".
 
   this.username = username;
-  this.realm = realm;
-  this.nonce = nonce;
+  this.password = password;
+  this.method   = request.method;
+  this.realm = authenticate.realm;
+  this.nonce = authenticate.nonce;
   this.uri = request.ruri;
-  this.qop = qop;
+  this.algorithm = authenticate.algorithm; // TODO: Check that authenticate.algorithm === 'MD5' (ABORT otherwise).
+  this.opaque = authenticate.opaque;
   this.response = null;
-  this.algorithm = "MD5";
-  this.opaque = opaque;
   this.cnonce = null;
   this.nc = 0;
+
+  // 'qop' can contain a list of values (Array). Let's choose just one.
+  if (authenticate.qop) {
+    if (authenticate.qop.indexOf('auth') > -1) {
+      this.qop = 'auth';
+    } else if (authenticate.qop.indexOf('auth-int') > -1) {
+      this.qop = 'auth-int';
+    } else {
+      // TODO: Otherwise 'qop' is present but does not contain 'auth' or 'auth-int', so we should ABORT here!
+      this.qop = undefined;
+    }
+  } else {
+    this.qop = null;
+  }
 };
 
 JsSIP.DigestAuthentication.prototype.authenticate = function(password) {
@@ -59,19 +69,21 @@ JsSIP.DigestAuthentication.prototype.authenticate = function(password) {
   // HA1 = MD5(A1) = MD5(username:realm:password)
   ha1 = JsSIP.Utils.MD5(this.username + ":" + this.realm + ":" + password);
 
-  if (this.qop === 'auth' || this.qop === null) {
+  if (this.qop === 'auth') {
     // HA2 = MD5(A2) = MD5(method:digestURI)
     ha2 = JsSIP.Utils.MD5(this.method + ":" + this.uri);
+    // response = MD5(HA1:nonce:nonceCount:credentialsNonce:qop:HA2)
+    this.response = JsSIP.Utils.MD5(ha1 + ":" + this.nonce + ":" + this.decimalToHex(this.nc) + ":" + this.cnonce + ":auth:" + ha2);
 
-  } else if (this.qop === 'auth-int') {
+  } else if (this.qop = 'auth-int') {
     // HA2 = MD5(A2) = MD5(method:digestURI:MD5(entityBody))
     ha2 = JsSIP.Utils.MD5(this.method + ":" + this.uri + ":" + JsSIP.Utils.MD5(this.body ? this.body : ""));
-  }
-
-  if(this.qop === 'auth' || this.qop === 'auth-int') {
     // response = MD5(HA1:nonce:nonceCount:credentialsNonce:qop:HA2)
-    this.response = JsSIP.Utils.MD5(ha1 + ":" + this.nonce + ":" + this.decimalToHex(this.nc) + ":" + this.cnonce + ":" + this.qop + ":" + ha2);
-  } else {
+    this.response = JsSIP.Utils.MD5(ha1 + ":" + this.nonce + ":" + this.decimalToHex(this.nc) + ":" + this.cnonce + ":auth-int:" + ha2);
+
+  } else if (this.qop === null) {
+    // HA2 = MD5(A2) = MD5(method:digestURI)
+    ha2 = JsSIP.Utils.MD5(this.method + ":" + this.uri);
     // response = MD5(HA1:nonce:HA2)
     this.response = JsSIP.Utils.MD5(ha1 + ":" + this.nonce + ":" + ha2);
   }
@@ -89,34 +101,65 @@ JsSIP.DigestAuthentication.prototype.update = function(response) {
     authenticate = response.parseHeader('proxy-authenticate');
   }
 
-  nonce = authenticate.nonce.replace(/"/g,'');
+  // TODO: Some required params (as nonce, realam....) should be checked here, and ABORT if not present.
+
+  nonce = authenticate.nonce;
 
   if(nonce !== this.nonce) {
     this.nc = 0;
     this.nonce = nonce;
   }
 
-  this.realm = authenticate.realm.replace(/"/g,'');
-  this.qop = authenticate.qop || null;
+  this.realm = authenticate.realm;
   this.opaque = authenticate.opaque;
+
+  // 'qop' can contain a list of values (Array). Let's choose just one.
+  if (authenticate.qop) {
+    if (authenticate.qop.indexOf('auth') > -1) {
+      this.qop = 'auth';
+    } else if (authenticate.qop.indexOf('auth-int') > -1) {
+      this.qop = 'auth-int';
+    } else {
+      // TODO: Otherwise 'qop' is present but does not contain 'auth' or 'auth-int', so we should ABORT here!
+      this.qop = undefined;
+    }
+  } else {
+    this.qop = null;
+  }
 };
 
 
 JsSIP.DigestAuthentication.prototype.toString = function() {
-  var authorization = 'Digest ';
+  var auth_params = [];
 
-  authorization += 'username="' + this.username + '",';
-  authorization += 'realm="' + this.realm + '",';
-  authorization += 'nonce="' + this.nonce + '",';
-  authorization += 'uri="' + this.uri + '",';
-  authorization += 'response="' + this.response + '",';
-  authorization += this.opaque ? 'opaque="' + this.opaque + '",': '';
-  authorization += this.qop ? 'qop=' + this.qop + ',' : '';
-  authorization += this.qop ? 'cnonce="' + this.cnonce + '",' : '';
-  authorization += this.qop ? 'nc=' + this.decimalToHex(this.nc) + ',': '';
-  authorization += 'algorithm=MD5';
+  if (this.algorithm) {
+    auth_params.push('algorithm=' + this.algorithm);
+  }
+  if (this.username) {
+    auth_params.push('username="' + this.username + '"');
+  }
+  if (this.realm) {
+    auth_params.push('realm="' + this.realm + '"');
+  }
+  if (this.nonce) {
+    auth_params.push('nonce="' + this.nonce + '"');
+  }
+  if (this.uri) {
+    auth_params.push('uri="' + this.uri + '"');
+  }
+  if (this.response) {
+    auth_params.push('response="' + this.response + '"');
+  }
+  if (this.opaque) {
+    auth_params.push('opaque="' + this.opaque + '"');
+  }
+  if (this.qop) {
+    auth_params.push('qop=' + this.qop);
+    auth_params.push('cnonce="' + this.cnonce + '"');
+    auth_params.push('nc=' + this.decimalToHex(this.nc));
+  }
 
-  return authorization;
+  return 'Digest ' + auth_params.join(', ');
 };
 
 
