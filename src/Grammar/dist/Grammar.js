@@ -9909,7 +9909,7 @@ JsSIP.Grammar = (function(){
         }
         if (result0 !== null) {
           result0 = (function(offset, stale) {
-                                if (/true/i.test(stale)) {
+                                if (/^true/i.test(stale)) {
                                   data.stale=true;
                                 } else {
                                   data.stale=false;
@@ -10124,7 +10124,6 @@ JsSIP.Grammar = (function(){
         }
         if (result0 !== null) {
           result0 = (function(offset, qop_value) {
-                              console.log("QOP_VALUE: " + qop_value);
                               data.qop || (data.qop=[]);
                               data.qop.push(qop_value.toLowerCase()); })(pos0, result0);
         }
