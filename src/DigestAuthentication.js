@@ -78,7 +78,7 @@ JsSIP.DigestAuthentication.prototype.authenticate = function(password) {
     // response = MD5(HA1:nonce:nonceCount:credentialsNonce:qop:HA2)
     this.response = JsSIP.Utils.MD5(ha1 + ":" + this.nonce + ":" + this.ncHex + ":" + this.cnonce + ":auth:" + ha2);
 
-  } else if (this.qop = 'auth-int') {
+  } else if (this.qop === 'auth-int') {
     // HA2 = MD5(A2) = MD5(method:digestURI:MD5(entityBody))
     ha2 = JsSIP.Utils.MD5(this.method + ":" + this.uri + ":" + JsSIP.Utils.MD5(this.body ? this.body : ""));
     // response = MD5(HA1:nonce:nonceCount:credentialsNonce:qop:HA2)
@@ -104,7 +104,7 @@ JsSIP.DigestAuthentication.prototype.update = function(response) {
     authenticate = response.parseHeader('proxy-authenticate');
   }
 
-  // TODO: Some required params (as nonce, realam....) should be checked here, and ABORT if not present.
+  // TODO: Some required params (as nonce, realm....) should be checked here, and ABORT if not present.
 
   nonce = authenticate.nonce;
 
