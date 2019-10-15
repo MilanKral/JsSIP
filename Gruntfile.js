@@ -35,8 +35,8 @@ module.exports = function(grunt) {
 /*\n\
  * JsSIP version <%= pkg.version %>\n\
  * Copyright (c) 2012-<%= grunt.template.today("yyyy") %> José Luis Millán - Versatica <http://www.versatica.com>\n\
- * Homepage: http://jssip.net\n\
- * License: http://jssip.net/license\n\
+ * Homepage: https://jssip.net\n\
+ * License: https://jssip.net/license\n\
  */\n\n\n',
       footer: '\
 \n\n\nwindow.JsSIP = JsSIP;\n\
